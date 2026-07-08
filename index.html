@@ -12,64 +12,67 @@
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: #f4f6f9;
-            color: #333;
+            background: #121212;
+            color: #eee;
             padding: 20px;
+            min-height: 100vh;
         }
         .dashboard-header {
             text-align: center;
             margin-bottom: 30px;
         }
         .dashboard-header h1 {
-            color: #007bc4;
+            color: #4db8ff;
             font-weight: 600;
+            font-size: 28px;
+            letter-spacing: 1px;
         }
         .dashboard-header p {
-            color: #7f8c8d;
+            color: #aaa;
             font-size: 14px;
         }
         .card-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
             gap: 20px;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         .card {
-            background: #ffffff;
+            background: #1e1e1e;
             border-radius: 16px;
             padding: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 1px solid #333;
             transition: transform 0.1s ease;
-            border: 1px solid #f0f0f0;
         }
         .card:hover {
             transform: translateY(-3px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.7);
         }
         .meter-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
-            color: #2c3e50;
-            margin-bottom: 4px;
+            color: #fff;
+            margin-bottom: 2px;
         }
         .meter-sub {
             font-size: 13px;
-            color: #7f8c8d;
-            margin-bottom: 12px;
+            color: #aaa;
+            margin-bottom: 10px;
         }
         .balance-amount {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 700;
-            color: #27ae60;
+            color: #2ecc71;
             margin: 6px 0;
         }
         .meta-row {
             display: flex;
             justify-content: space-between;
             font-size: 13px;
-            color: #555;
-            background: #f8f9fa;
+            color: #ccc;
+            background: #2a2a2a;
             padding: 8px 12px;
             border-radius: 8px;
             margin: 8px 0 12px 0;
@@ -88,7 +91,7 @@
         }
         .chart-container {
             margin-top: 12px;
-            height: 80px;
+            height: 150px;  /* taller graph */
             position: relative;
         }
         .chart-container canvas {
@@ -96,18 +99,18 @@
             height: 100% !important;
         }
         .no-data {
-            color: #bdc3c7;
+            color: #888;
             font-size: 14px;
             text-align: center;
             padding: 20px 0;
         }
         .last-run-time {
-            font-size: 11px;
-            color: #95a5a6;
-            margin-top: 10px;
+            font-size: 12px;
+            color: #999;
+            margin-top: 12px;
             text-align: right;
-            border-top: 1px solid #eee;
-            padding-top: 8px;
+            border-top: 1px solid #333;
+            padding-top: 10px;
         }
         @media (max-width: 600px) {
             .card-grid {
@@ -124,22 +127,50 @@
     </div>
 
     <div class="card-grid" id="cardContainer">
-        <!-- Cards will be injected here -->
+        <!-- Cards injected here -->
     </div>
 
-    <!-- Chart.js (Minified) -->
+    <!-- Chart.js v2.9.4 + DataLabels Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@0.7.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
     <script>
         const HISTORY_URL = "meter_history.json";
         const CONFIG_URL = "meter_config.json";
+        const CACHE_BUST = '?v=' + new Date().getTime();
         let allCharts = [];
+
+        // Helper: format date "2026-07-08" to "Jul 08"
+        function formatDateLabel(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return dateStr;
+            const year = parts[0];
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return months[month] + ' ' + String(day).padStart(2, '0');
+        }
+
+        // Helper: format datetime "2026-07-08 23:23:05" to "11:23 PM"
+        function formatTime12(datetimeStr) {
+            if (!datetimeStr) return 'N/A';
+            const parts = datetimeStr.split(' ');
+            if (parts.length < 2) return datetimeStr;
+            const timeParts = parts[1].split(':');
+            if (timeParts.length < 2) return datetimeStr;
+            let hour = parseInt(timeParts[0], 10);
+            const minute = timeParts[1];
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            hour = hour % 12 || 12;
+            return hour + ':' + minute + ' ' + ampm;
+        }
 
         async function loadDashboard() {
             try {
                 const [historyRes, configRes] = await Promise.all([
-                    fetch(HISTORY_URL),
-                    fetch(CONFIG_URL).catch(() => ({ ok: false }))
+                    fetch(HISTORY_URL + CACHE_BUST),
+                    fetch(CONFIG_URL + CACHE_BUST).catch(() => ({ ok: false }))
                 ]);
 
                 if (!historyRes.ok) throw new Error("History file not found");
@@ -153,14 +184,13 @@
                 const meterData = fullData.meter_data || {};
                 const lastRun = fullData.last_run || {};
 
-                // Update global timestamp
+                // Update global timestamp (latest run)
                 const allRuns = Object.values(lastRun);
                 if (allRuns.length > 0) {
-                    // Sort descending and pick the latest
                     allRuns.sort((a, b) => new Date(b) - new Date(a));
-                    document.getElementById('globalUpdateTime').innerText = allRuns[0] + " (BD)";
+                    document.getElementById('globalUpdateTime').innerText = formatTime12(allRuns[0]) + ' (BD)';
                 } else {
-                    document.getElementById('globalUpdateTime').innerText = "No runs yet";
+                    document.getElementById('globalUpdateTime').innerText = 'No runs yet';
                 }
 
                 const container = document.getElementById('cardContainer');
@@ -172,22 +202,22 @@
                     return;
                 }
 
-                // Sort meters (optional)
                 meterNumbers.sort();
 
-                meterNumbers.forEach((meter, index) => {
+                meterNumbers.forEach((meter) => {
                     const history = meterData[meter] || [];
                     const displayName = meterNames[meter] || meter;
                     const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                     const lastRunTime = lastRun[meter] || "N/A";
 
-                    // Prepare 7-day data for chart
+                    // Last 7 entries for chart
                     const last7 = history.slice(-7);
-                    const labels = last7.map(d => d.balance_date || '');
+                    const labels = last7.map(d => formatDateLabel(d.balance_date || ''));
                     const usages = last7.map(d => d.usage || 0);
                     const latestBalance = lastEntry ? lastEntry.balance : 0;
-                    const latestDate = lastEntry ? lastEntry.balance_date : '--';
+                    const latestDate = lastEntry ? formatDateLabel(lastEntry.balance_date) : '--';
                     const latestUsage = lastEntry ? lastEntry.usage : 0;
+                    const recordedTime = lastEntry ? formatTime12(lastEntry.recorded_at) : '--';
 
                     const card = document.createElement('div');
                     card.className = 'card';
@@ -204,20 +234,27 @@
                         <div class="chart-container">
                             <canvas id="chart-${meter}"></canvas>
                         </div>
-                        <div class="last-run-time">🕒 শেষ রান: ${lastRunTime}</div>
+                        <div class="last-run-time">🕒 শেষ রান: ${formatTime12(lastRunTime)} (${lastRunTime.split(' ')[0]})</div>
                     `;
 
                     container.appendChild(card);
 
                     // Draw mini chart
                     const ctx = document.getElementById(`chart-${meter}`).getContext('2d');
+
+                    // Chart.js DataLabels plugin configuration
+                    const datalabelsPlugin = Chart.plugins.get('datalabels');
+                    if (datalabelsPlugin) {
+                        // Ensure it's registered
+                    }
+
                     const chart = new Chart(ctx, {
                         type: 'bar',
                         data: {
                             labels: labels,
                             datasets: [{
                                 data: usages,
-                                backgroundColor: '#3498db',
+                                backgroundColor: '#4db8ff',
                                 borderRadius: 4,
                                 barPercentage: 0.6
                             }]
@@ -238,22 +275,38 @@
                                     ticks: {
                                         beginAtZero: true,
                                         maxTicksLimit: 4,
-                                        fontColor: '#888',
+                                        fontColor: '#ccc',
                                         fontSize: 9
                                     },
-                                    gridLines: { display: false }
+                                    gridLines: { color: '#444', display: true }
                                 }],
                                 xAxes: [{
                                     ticks: {
-                                        fontColor: '#888',
-                                        fontSize: 8,
-                                        maxRotation: 45,
-                                        minRotation: 30
+                                        fontColor: '#eee',
+                                        fontSize: 10,
+                                        maxRotation: 30,
+                                        minRotation: 0
                                     },
                                     gridLines: { display: false }
                                 }]
+                            },
+                            plugins: {
+                                datalabels: {
+                                    anchor: 'end',
+                                    align: 'end',
+                                    color: '#eee',
+                                    font: {
+                                        size: 10,
+                                        weight: 'bold'
+                                    },
+                                    formatter: function(value) {
+                                        return '৳' + value.toFixed(1);
+                                    },
+                                    offset: 2
+                                }
                             }
-                        }
+                        },
+                        plugins: [ChartDataLabels]  // Ensure plugin is used
                     });
 
                     allCharts.push(chart);
