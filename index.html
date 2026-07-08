@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NESCO Meter Dashboard</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f6f9;
+            color: #333;
+            padding: 20px;
+        }
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .dashboard-header h1 {
+            color: #007bc4;
+            font-weight: 600;
+        }
+        .dashboard-header p {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            transition: transform 0.1s ease;
+            border: 1px solid #f0f0f0;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+        .meter-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 4px;
+        }
+        .meter-sub {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-bottom: 12px;
+        }
+        .balance-amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #27ae60;
+            margin: 6px 0;
+        }
+        .meta-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #555;
+            background: #f8f9fa;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 8px 0 12px 0;
+        }
+        .meta-row span {
+            display: inline-block;
+        }
+        .usage-badge {
+            display: inline-block;
+            background: #ffebee;
+            color: #c62828;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .chart-container {
+            margin-top: 12px;
+            height: 80px;
+            position: relative;
+        }
+        .chart-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .no-data {
+            color: #bdc3c7;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px 0;
+        }
+        .last-run-time {
+            font-size: 11px;
+            color: #95a5a6;
+            margin-top: 10px;
+            text-align: right;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+        @media (max-width: 600px) {
+            .card-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-header">
+        <h1>⚡ NESCO Meter Dashboard</h1>
+        <p>সর্বশেষ আপডেট: <span id="globalUpdateTime">Loading...</span></p>
+    </div>
+
+    <div class="card-grid" id="cardContainer">
+        <!-- Cards will be injected here -->
+    </div>
+
+    <!-- Chart.js (Minified) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"></script>
+
+    <script>
+        const HISTORY_URL = "meter_history.json";
+        const CONFIG_URL = "meter_config.json";
+        let allCharts = [];
+
+        async function loadDashboard() {
+            try {
+                const [historyRes, configRes] = await Promise.all([
+                    fetch(HISTORY_URL),
+                    fetch(CONFIG_URL).catch(() => ({ ok: false }))
+                ]);
+
+                if (!historyRes.ok) throw new Error("History file not found");
+                const fullData = await historyRes.json();
+
+                let meterNames = {};
+                if (configRes.ok) {
+                    meterNames = await configRes.json();
+                }
+
+                const meterData = fullData.meter_data || {};
+                const lastRun = fullData.last_run || {};
+
+                // Update global timestamp
+                const allRuns = Object.values(lastRun);
+                if (allRuns.length > 0) {
+                    // Sort descending and pick the latest
+                    allRuns.sort((a, b) => new Date(b) - new Date(a));
+                    document.getElementById('globalUpdateTime').innerText = allRuns[0] + " (BD)";
+                } else {
+                    document.getElementById('globalUpdateTime').innerText = "No runs yet";
+                }
+
+                const container = document.getElementById('cardContainer');
+                container.innerHTML = '';
+
+                const meterNumbers = Object.keys(meterData);
+                if (meterNumbers.length === 0) {
+                    container.innerHTML = '<div class="card" style="grid-column:1/-1; text-align:center; padding:40px;">⚠️ কোনো মিটার ডেটা পাওয়া যায়নি।</div>';
+                    return;
+                }
+
+                // Sort meters (optional)
+                meterNumbers.sort();
+
+                meterNumbers.forEach((meter, index) => {
+                    const history = meterData[meter] || [];
+                    const displayName = meterNames[meter] || meter;
+                    const lastEntry = history.length > 0 ? history[history.length - 1] : null;
+                    const lastRunTime = lastRun[meter] || "N/A";
+
+                    // Prepare 7-day data for chart
+                    const last7 = history.slice(-7);
+                    const labels = last7.map(d => d.balance_date || '');
+                    const usages = last7.map(d => d.usage || 0);
+                    const latestBalance = lastEntry ? lastEntry.balance : 0;
+                    const latestDate = lastEntry ? lastEntry.balance_date : '--';
+                    const latestUsage = lastEntry ? lastEntry.usage : 0;
+
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.id = `card-${meter}`;
+
+                    card.innerHTML = `
+                        <div class="meter-title">${displayName}</div>
+                        <div class="meter-sub">মিটার: ${meter}</div>
+                        <div class="balance-amount">৳ ${latestBalance.toFixed(2)}</div>
+                        <div class="meta-row">
+                            <span>📅 তারিখ: ${latestDate}</span>
+                            <span class="usage-badge">আজকের খরচ: ৳ ${latestUsage.toFixed(2)}</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-${meter}"></canvas>
+                        </div>
+                        <div class="last-run-time">🕒 শেষ রান: ${lastRunTime}</div>
+                    `;
+
+                    container.appendChild(card);
+
+                    // Draw mini chart
+                    const ctx = document.getElementById(`chart-${meter}`).getContext('2d');
+                    const chart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                data: usages,
+                                backgroundColor: '#3498db',
+                                borderRadius: 4,
+                                barPercentage: 0.6
+                            }]
+                        },
+                        options: {
+                            legend: { display: false },
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            tooltips: {
+                                callbacks: {
+                                    label: function(tooltipItem) {
+                                        return '৳ ' + tooltipItem.yLabel.toFixed(2);
+                                    }
+                                }
+                            },
+                            scales: {
+                                yAxes: [{
+                                    ticks: {
+                                        beginAtZero: true,
+                                        maxTicksLimit: 4,
+                                        fontColor: '#888',
+                                        fontSize: 9
+                                    },
+                                    gridLines: { display: false }
+                                }],
+                                xAxes: [{
+                                    ticks: {
+                                        fontColor: '#888',
+                                        fontSize: 8,
+                                        maxRotation: 45,
+                                        minRotation: 30
+                                    },
+                                    gridLines: { display: false }
+                                }]
+                            }
+                        }
+                    });
+
+                    allCharts.push(chart);
+                });
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('cardContainer').innerHTML = `
+                    <div class="card" style="grid-column:1/-1; text-align:center; padding:40px; color:#e74c3c;">
+                        ❌ ডেটা লোড করা যায়নি। <br><small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        window.onload = loadDashboard;
+    </script>
+</body>
+</html>
