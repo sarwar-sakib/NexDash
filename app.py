@@ -134,45 +134,4 @@ def main():
     print("\n✅ Database updated successfully!")
 
 if __name__ == "__main__":
-    main()        else:
-            usage = 0.0
-
-        # ---- CHECK IF WE ALREADY HAVE AN ENTRY FOR THIS DATE ----
-        existing_entry = None
-        for entry in history:
-            if entry["balance_date"] == actual_date:
-                existing_entry = entry
-                break
-
-        if existing_entry:
-            # Accumulate usage: add today's usage to existing usage
-            new_usage = existing_entry["usage"] + usage
-            existing_entry["balance"] = web_balance
-            existing_entry["usage"] = new_usage
-            existing_entry["recorded_at"] = now_bd_str
-            print(f"   🔄 Updated entry for {actual_date}. Usage: {new_usage} (was {existing_entry['usage'] - usage})")
-        else:
-            # New entry
-            history.append({
-                "balance_date": actual_date,
-                "balance": web_balance,
-                "usage": usage,
-                "recorded_at": now_bd_str
-            })
-            print(f"   ➕ Added new entry for {actual_date}. Usage: {usage}")
-
-        # ALWAYS update last run timestamp
-        last_run[cust_no] = now_bd_str
-        print(f"   🕒 Last run updated to: {now_bd_str}")
-
-    # Save back to file
-    full_db["meter_data"] = meter_data
-    full_db["last_run"] = last_run
-
-    with open(DB_FILE, "w") as f:
-        json.dump(full_db, f, indent=4)
-    
-    print("\n✅ Database updated successfully!")
-
-if __name__ == "__main__":
     main()
