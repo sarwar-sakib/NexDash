@@ -2,6 +2,24 @@
     "meter_data": {
         "37005309": [
             {
+                "balance_date": "2026-07-05",
+                "balance": 2533.61,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 2502.62,
+                "usage": 30.99,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 2444.23,
+                "usage": 58.39,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
+            {
                 "balance_date": "2026-07-08",
                 "balance": 2444.23,
                 "usage": 0.0,
@@ -9,6 +27,24 @@
             }
         ],
         "37006814": [
+            {
+                "balance_date": "2026-07-05",
+                "balance": 2425.83,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 2425.83,
+                "usage": 0.0,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 2312.98,
+                "usage": 112.85,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
             {
                 "balance_date": "2026-07-08",
                 "balance": 2312.98,
@@ -18,6 +54,24 @@
         ],
         "37001280": [
             {
+                "balance_date": "2026-07-05",
+                "balance": 1612.28,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 1545.49,
+                "usage": 66.79,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 1469.93,
+                "usage": 75.56,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
+            {
                 "balance_date": "2026-07-08",
                 "balance": 1469.93,
                 "usage": 0.0,
@@ -25,6 +79,24 @@
             }
         ],
         "37009693": [
+            {
+                "balance_date": "2026-07-05",
+                "balance": 1230.26,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 1193.07,
+                "usage": 37.19,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 1148.95,
+                "usage": 44.12,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
             {
                 "balance_date": "2026-07-08",
                 "balance": 1148.95,
@@ -34,6 +106,24 @@
         ],
         "37005104": [
             {
+                "balance_date": "2026-07-05",
+                "balance": 399.1,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 387.82,
+                "usage": 11.28,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 357.9,
+                "usage": 29.92,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
+            {
                 "balance_date": "2026-07-08",
                 "balance": 357.9,
                 "usage": 0.0,
@@ -41,6 +131,24 @@
             }
         ],
         "37002391": [
+            {
+                "balance_date": "2026-07-05",
+                "balance": 627.57,
+                "usage": 0.0,
+                "recorded_at": "2026-07-05 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-06",
+                "balance": 611.63,
+                "usage": 15.94,
+                "recorded_at": "2026-07-06 00:00:00"
+            },
+            {
+                "balance_date": "2026-07-07",
+                "balance": 597.38,
+                "usage": 14.25,
+                "recorded_at": "2026-07-07 00:00:00"
+            },
             {
                 "balance_date": "2026-07-08",
                 "balance": 597.38,
