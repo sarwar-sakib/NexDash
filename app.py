@@ -3,25 +3,22 @@ import re
 import json
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 PANEL_URL = "https://customer.nesco.gov.bd/pre/panel"
 DB_FILE = "meter_history.json"
 CONFIG_FILE = "meter_config.json"
 
-# Set Bangladesh timezone
 BD_TZ = pytz.timezone('Asia/Dhaka')
 session = requests.Session()
 
 def get_meter_numbers():
-    """Read meter numbers from meter_config.json"""
     try:
         with open(CONFIG_FILE, "r") as f:
             config = json.load(f)
             return list(config.keys())
     except FileNotFoundError:
-        print("❌ meter_config.json not found! Using fallback list.")
         try:
             with open("meters.txt", "r") as f:
                 return [line.strip() for line in f if line.strip()]
@@ -33,34 +30,26 @@ def fetch_nesco_data(cust_no):
         headers = {"User-Agent": "Mozilla/5.0"}
         r1 = session.get(PANEL_URL, headers=headers, timeout=20)
         soup_page = BeautifulSoup(r1.text, "html.parser")
-        
         token_tag = soup_page.find("input", {"name": "_token"})
         if not token_tag:
             return None
-        
         data = {"_token": token_tag["value"], "cust_no": cust_no.strip(), "submit": "রিচার্জ হিস্ট্রি"}
         r2 = session.post(PANEL_URL, headers=headers, data=data, timeout=30)
         soup = BeautifulSoup(r2.text, "html.parser")
-        
         balance_anchor = soup.find(string=re.compile("অবশিষ্ট ব্যালেন্স"))
         if not balance_anchor:
             return None
-        
         label = balance_anchor.find_parent("label")
         balance_value = float(label.find_next_sibling("div").find("input")["value"])
-        
-        # Parse the date from the website
         date_str = label.find("span").text.strip()
         dt = datetime.strptime(date_str, "%d %B %Y %I:%M:%S %p")
         formatted_date = dt.strftime("%Y-%m-%d")
-        
         return {"balance": balance_value, "date": formatted_date}
     except Exception as e:
         print(f"❌ Error scraping {cust_no}: {e}")
         return None
 
 def main():
-    # Load existing database
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r") as f:
             full_db = json.load(f)
@@ -70,9 +59,7 @@ def main():
     meter_data = full_db.get("meter_data", {})
     last_run = full_db.get("last_run", {})
 
-    # Get current Bangladesh date and time
     now_bd = datetime.now(BD_TZ)
-    today_bd_str = now_bd.strftime("%Y-%m-%d")
     now_bd_str = now_bd.strftime("%Y-%m-%d %H:%M:%S")
 
     meters = get_meter_numbers()
@@ -80,37 +67,74 @@ def main():
 
     for cust_no in meters:
         print(f"\n🔍 Checking meter: {cust_no}")
-        
         current_data = fetch_nesco_data(cust_no)
         if not current_data:
             last_run[cust_no] = now_bd_str
             continue
 
         web_balance = current_data["balance"]
-        web_date = current_data["date"]
-        
-        # ---- APPLY +1 DAY SHIFT (to match actual day) ----
-        actual_date = (datetime.strptime(web_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-        # -------------------------------------------------
-        
-        print(f"   📅 Scraped: {web_date} → Adjusted: {actual_date}, Balance: {web_balance}")
-        
-        # Initialize history for this meter
+        web_date = current_data["date"]   # no shift – use as-is
+
+        print(f"   📅 Scraped Date: {web_date}, Balance: {web_balance}")
+
         if cust_no not in meter_data:
             meter_data[cust_no] = []
 
         history = meter_data[cust_no]
 
-        # ---- CALCULATE USAGE FROM LAST RECORDED BALANCE ----
+        # ---- Check if we already have an entry for this date ----
+        existing_idx = None
+        for i, entry in enumerate(history):
+            if entry["balance_date"] == web_date:
+                existing_idx = i
+                break
+
+        # ---- Calculate usage from last recorded balance (if any) ----
         if len(history) > 0:
             last_entry = history[-1]
             prev_balance = last_entry["balance"]
             if web_balance <= prev_balance:
                 usage = round(prev_balance - web_balance, 2)
             else:
-                # Recharge – no negative usage
                 usage = 0.0
         else:
+            usage = 0.0
+
+        # ---- Only update if balance has changed OR no entry exists for this date ----
+        if existing_idx is not None:
+            existing_entry = history[existing_idx]
+            if existing_entry["balance"] != web_balance:
+                new_usage = existing_entry["usage"] + usage
+                existing_entry["balance"] = web_balance
+                existing_entry["usage"] = new_usage
+                existing_entry["recorded_at"] = now_bd_str
+                print(f"   🔄 Updated entry for {web_date}. New usage: {new_usage}")
+            else:
+                print(f"   ⏭️ Balance unchanged for {web_date}. No update needed.")
+        else:
+            # No entry for this date – add new one
+            history.append({
+                "balance_date": web_date,
+                "balance": web_balance,
+                "usage": usage,
+                "recorded_at": now_bd_str
+            })
+            print(f"   ➕ Added new entry for {web_date}. Usage: {usage}")
+
+        # Always update last run
+        last_run[cust_no] = now_bd_str
+        print(f"   🕒 Last run updated to: {now_bd_str}")
+
+    full_db["meter_data"] = meter_data
+    full_db["last_run"] = last_run
+
+    with open(DB_FILE, "w") as f:
+        json.dump(full_db, f, indent=4)
+
+    print("\n✅ Database updated successfully!")
+
+if __name__ == "__main__":
+    main()        else:
             usage = 0.0
 
         # ---- CHECK IF WE ALREADY HAVE AN ENTRY FOR THIS DATE ----
