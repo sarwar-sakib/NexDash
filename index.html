@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NESCO Meter Dashboard</title>
     <style>
-        /* (Your existing styles – unchanged) */
+        /* আপনার আগের CSS – অপরিবর্তিত */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -174,7 +174,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@0.7.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
     <script>
-        // Register the datalabels plugin globally
         Chart.plugins.register(ChartDataLabels);
 
         const HISTORY_URL = "meter_history.json";
@@ -182,23 +181,22 @@
         const CACHE_BUST = '?v=' + new Date().getTime();
         let allCharts = [];
 
-        // ---------- UPDATED: shift date by +1 day ----------
+        // ---------- পরিবর্তন: ১ দিন পিছিয়ে দেখান ----------
         function formatDateLabel(dateStr) {
             if (!dateStr) return '';
             const parts = dateStr.split('-');
             if (parts.length !== 3) return dateStr;
-            // Parse as UTC to avoid timezone issues
+            // Parse as UTC
             const d = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
-            // Add 1 day
-            d.setUTCDate(d.getUTCDate() + 1);
+            // Subtract 1 day (ব্যবহার আগের দিনের)
+            d.setUTCDate(d.getUTCDate() - 1);
             const month = d.getUTCMonth();
             const day = d.getUTCDate();
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             return months[month] + ' ' + String(day).padStart(2, '0');
         }
-        // ------------------------------------------------
+        // -------------------------------------------------
 
-        // Helper: format datetime "2026-07-08 23:23:05" to "11:23 PM"
         function formatTime12(datetimeStr) {
             if (!datetimeStr) return 'N/A';
             const parts = datetimeStr.split(' ');
@@ -212,7 +210,6 @@
             return hour + ':' + minute + ' ' + ampm;
         }
 
-        // Helper: copy meter number to clipboard
         function copyMeterNumber(meter) {
             navigator.clipboard.writeText(meter).then(() => {
                 const btn = document.getElementById(`copy-btn-${meter}`);
@@ -244,7 +241,6 @@
                 const meterData = fullData.meter_data || {};
                 const lastRun = fullData.last_run || {};
 
-                // Update global timestamp (latest run)
                 const allRuns = Object.values(lastRun);
                 if (allRuns.length > 0) {
                     allRuns.sort((a, b) => new Date(b) - new Date(a));
@@ -262,17 +258,10 @@
                     return;
                 }
 
-                // ---------- MANUAL SORT ORDER ----------
                 const customOrder = [
-                    "37005309",   // Home
-                    "37006814",   // Office
-                    "37001280",   // Shop
-                    "37009693",   // Factory
-                    "37005104",   // Guest House
-                    "37002391"    // Warehouse
+                    "37005309", "37006814", "37001280", "37009693", "37005104", "37002391"
                 ];
                 meterNumbers.sort((a, b) => customOrder.indexOf(a) - customOrder.indexOf(b));
-                // ----------------------------------------
 
                 meterNumbers.forEach((meter) => {
                     const history = meterData[meter] || [];
@@ -280,7 +269,6 @@
                     const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                     const lastRunTime = lastRun[meter] || "N/A";
 
-                    // Last 7 entries for chart
                     const last7 = history.slice(-7);
                     const labels = last7.map(d => formatDateLabel(d.balance_date || ''));
                     const usages = last7.map(d => d.usage || 0);
@@ -303,7 +291,7 @@
                         <div class="balance-amount">৳ ${latestBalance.toFixed(2)}</div>
                         <div class="meta-row">
                             <span>📅 তারিখ: ${latestDate}</span>
-                            <span class="usage-badge">আজকের খরচ: ৳ ${latestUsage.toFixed(2)}</span>
+                            <span class="usage-badge">সর্বশেষ খরচ: ৳ ${latestUsage.toFixed(2)}</span>
                         </div>
                         <div class="chart-container">
                             <canvas id="chart-${meter}"></canvas>
@@ -313,7 +301,6 @@
 
                     container.appendChild(card);
 
-                    // Draw mini chart
                     const ctx = document.getElementById(`chart-${meter}`).getContext('2d');
 
                     const chart = new Chart(ctx, {
@@ -331,11 +318,7 @@
                             legend: { display: false },
                             responsive: true,
                             maintainAspectRatio: false,
-                            layout: {
-                                padding: {
-                                    top: 20
-                                }
-                            },
+                            layout: { padding: { top: 20 } },
                             tooltips: {
                                 callbacks: {
                                     label: function(tooltipItem) {
@@ -368,10 +351,7 @@
                                     anchor: 'end',
                                     align: 'end',
                                     color: '#eee',
-                                    font: {
-                                        size: 10,
-                                        weight: 'bold'
-                                    },
+                                    font: { size: 10, weight: 'bold' },
                                     formatter: function(value) {
                                         return '৳' + value.toFixed(1);
                                     },
