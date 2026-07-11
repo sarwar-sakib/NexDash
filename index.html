@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NESCO Meter Dashboard</title>
     <style>
+        /* (Your existing styles – unchanged) */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -119,7 +120,7 @@
         }
         .chart-container {
             margin-top: 12px;
-            height: 160px; /* increased slightly for better label visibility */
+            height: 160px;
             position: relative;
         }
         .chart-container canvas {
@@ -181,16 +182,21 @@
         const CACHE_BUST = '?v=' + new Date().getTime();
         let allCharts = [];
 
-        // Helper: format date "2026-07-08" to "Jul 08"
+        // ---------- UPDATED: shift date by +1 day ----------
         function formatDateLabel(dateStr) {
             if (!dateStr) return '';
             const parts = dateStr.split('-');
             if (parts.length !== 3) return dateStr;
-            const month = parseInt(parts[1], 10) - 1;
-            const day = parseInt(parts[2], 10);
+            // Parse as UTC to avoid timezone issues
+            const d = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+            // Add 1 day
+            d.setUTCDate(d.getUTCDate() + 1);
+            const month = d.getUTCMonth();
+            const day = d.getUTCDate();
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             return months[month] + ' ' + String(day).padStart(2, '0');
         }
+        // ------------------------------------------------
 
         // Helper: format datetime "2026-07-08 23:23:05" to "11:23 PM"
         function formatTime12(datetimeStr) {
@@ -327,7 +333,7 @@
                             maintainAspectRatio: false,
                             layout: {
                                 padding: {
-                                    top: 20   // ← KEY FIX: adds space at top for datalabels
+                                    top: 20
                                 }
                             },
                             tooltips: {
