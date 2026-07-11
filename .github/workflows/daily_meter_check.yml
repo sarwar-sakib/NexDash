@@ -2,9 +2,7 @@ name: Daily NESCO Usage Tracker
 
 on:
   schedule:
-    - cron: '0 19 * * *'   # 1:00 AM BD (UTC 7:00 PM previous day)
     - cron: '0 21 * * *'   # 3:00 AM BD (UTC 9:00 PM previous day)
-    - cron: '0 0 * * *'    # 6:00 AM BD (UTC 12:00 AM same day)
   workflow_dispatch:
 
 permissions:
