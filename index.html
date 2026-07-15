@@ -50,6 +50,8 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.5);
             border: 1px solid #333;
             transition: transform 0.1s ease;
+            display: flex;
+            flex-direction: column;
         }
         .card:hover {
             transform: translateY(-3px);
@@ -113,26 +115,6 @@
         .meta-row span {
             display: inline-block;
         }
-        .forecast-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-            background: #1a1a2e;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin: 8px 0 12px 0;
-            border-left: 3px solid #4db8ff;
-        }
-        .forecast-row span {
-            display: inline-block;
-        }
-        .forecast-label {
-            color: #aaa;
-        }
-        .forecast-value {
-            color: #4db8ff;
-            font-weight: 600;
-        }
         .usage-badge {
             display: inline-block;
             background: #ffebee;
@@ -146,6 +128,7 @@
             margin-top: 12px;
             height: 160px;
             position: relative;
+            flex-shrink: 0;
         }
         .chart-container canvas {
             width: 100% !important;
@@ -156,6 +139,28 @@
             font-size: 14px;
             text-align: center;
             padding: 20px 0;
+        }
+        /* ---- Forecast (bottom of card) ---- */
+        .forecast-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            background: #1a1a2e;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+            border-left: 3px solid #4db8ff;
+            flex-shrink: 0;
+        }
+        .forecast-row span {
+            display: inline-block;
+        }
+        .forecast-label {
+            color: #aaa;
+        }
+        .forecast-value {
+            color: #4db8ff;
+            font-weight: 600;
         }
         @media (max-width: 600px) {
             .card-grid {
@@ -181,7 +186,7 @@
 <body>
 
     <div class="dashboard-header">
-        <h1>⚡ NESCO Meter Dashboard</h1>
+        <h1>⚡NexDash</h1>
         <p>সর্বশেষ আপডেট: <span id="globalUpdateTime">Loading...</span></p>
     </div>
 
@@ -194,7 +199,6 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@0.7.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
     <script>
-        // Register datalabels plugin
         Chart.plugins.register(ChartDataLabels);
 
         const HISTORY_URL = "meter_history.json";
@@ -202,13 +206,13 @@
         const CACHE_BUST = '?v=' + new Date().getTime();
         let allCharts = [];
 
-        // ---------- Helper: format date (1 day backward shift) ----------
+        // ---------- Helper: format date (1 day backward) ----------
         function formatDateLabel(dateStr) {
             if (!dateStr) return '';
             const parts = dateStr.split('-');
             if (parts.length !== 3) return dateStr;
             const d = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
-            d.setUTCDate(d.getUTCDate() - 1);  // 1 day backward
+            d.setUTCDate(d.getUTCDate() - 1);
             const month = d.getUTCMonth();
             const day = d.getUTCDate();
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -292,7 +296,7 @@
                 const meterData = fullData.meter_data || {};
                 const lastRun = fullData.last_run || {};
 
-                // Update global header timestamp (latest run across all meters)
+                // Update global header timestamp
                 const allRuns = Object.values(lastRun);
                 if (allRuns.length > 0) {
                     allRuns.sort((a, b) => new Date(b) - new Date(a));
@@ -310,7 +314,6 @@
                     return;
                 }
 
-                // Custom sort order
                 const customOrder = [
                     "37005309", "37006814", "37001280", "37009693", "37005104", "37002391"
                 ];
@@ -336,12 +339,10 @@
                         forecastText = `অবশিষ্ট: ${forecast.daysCeil} দিন (≈ ${endDateStr})`;
                     }
 
-                    // Last 7 entries for chart
                     const last7 = history.slice(-7);
                     const labels = last7.map(d => formatDateLabel(d.balance_date || ''));
                     const usages = last7.map(d => d.usage || 0);
 
-                    // Determine balance color
                     const balanceClass = latestBalance < 0 ? 'balance-negative' : 'balance-positive';
 
                     const card = document.createElement('div');
@@ -359,20 +360,20 @@
                         <div class="balance-amount ${balanceClass}">৳ ${latestBalance.toFixed(2)}</div>
                         <div class="meta-row">
                             <span>📅 তারিখ: ${latestDate}</span>
-                            <span class="usage-badge">📊 ৭ দিনের গড়: ৳ ${avgUsage.toFixed(2)}</span>
+                            <span class="usage-badge">গড় খরচ: ৳ ${avgUsage.toFixed(2)}</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chart-${meter}"></canvas>
                         </div>
                         <div class="forecast-row">
                             <span class="forecast-label">🔮 পূর্বাভাস</span>
                             <span class="forecast-value">${forecastText}</span>
                         </div>
-                        <div class="chart-container">
-                            <canvas id="chart-${meter}"></canvas>
-                        </div>
                     `;
 
                     container.appendChild(card);
 
-                    // Draw mini chart
+                    // Draw chart
                     const ctx = document.getElementById(`chart-${meter}`).getContext('2d');
 
                     const chart = new Chart(ctx, {
