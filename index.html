@@ -140,10 +140,11 @@
             text-align: center;
             padding: 20px 0;
         }
-        /* ---- Forecast (bottom of card) ---- */
+        /* Forecast row: two columns */
         .forecast-row {
             display: flex;
             justify-content: space-between;
+            align-items: center;
             font-size: 13px;
             background: #1a1a2e;
             padding: 8px 12px;
@@ -151,15 +152,23 @@
             margin-top: 12px;
             border-left: 3px solid #4db8ff;
             flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 6px;
         }
-        .forecast-row span {
-            display: inline-block;
+        .forecast-left, .forecast-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
         .forecast-label {
             color: #aaa;
         }
         .forecast-value {
             color: #4db8ff;
+            font-weight: 600;
+        }
+        .total-usage-value {
+            color: #f1c40f;
             font-weight: 600;
         }
         @media (max-width: 600px) {
@@ -177,8 +186,12 @@
                 font-size: 18px;
             }
             .forecast-row {
-                flex-wrap: wrap;
-                gap: 6px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 4px;
+            }
+            .forecast-left, .forecast-right {
+                justify-content: space-between;
             }
         }
     </style>
@@ -186,7 +199,7 @@
 <body>
 
     <div class="dashboard-header">
-        <h1>⚡NexDash</h1>
+        <h1>⚡ NESCO Meter Dashboard</h1>
         <p>সর্বশেষ আপডেট: <span id="globalUpdateTime">Loading...</span></p>
     </div>
 
@@ -206,13 +219,20 @@
         const CACHE_BUST = '?v=' + new Date().getTime();
         let allCharts = [];
 
-        // ---------- Helper: format date (1 day backward) ----------
-        function formatDateLabel(dateStr) {
-            if (!dateStr) return '';
+        // ---------- Helper: shift date by -1 day and return Date object ----------
+        function shiftDateMinusOne(dateStr) {
+            if (!dateStr) return null;
             const parts = dateStr.split('-');
-            if (parts.length !== 3) return dateStr;
+            if (parts.length !== 3) return null;
             const d = new Date(Date.UTC(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
             d.setUTCDate(d.getUTCDate() - 1);
+            return d;
+        }
+
+        // ---------- Helper: format date (1 day backward) for display ----------
+        function formatDateLabel(dateStr) {
+            const d = shiftDateMinusOne(dateStr);
+            if (!d) return '';
             const month = d.getUTCMonth();
             const day = d.getUTCDate();
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -248,6 +268,23 @@
             const last7 = history.slice(-count);
             const total = last7.reduce((sum, entry) => sum + (entry.usage || 0), 0);
             return total / count;
+        }
+
+        // ---------- Helper: calculate total usage for current month ----------
+        function calculateTotalUsageCurrentMonth(history) {
+            if (!history || history.length === 0) return 0;
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            const currentMonth = now.getMonth(); // 0-indexed
+            let total = 0;
+            for (const entry of history) {
+                const shiftedDate = shiftDateMinusOne(entry.balance_date);
+                if (!shiftedDate) continue;
+                if (shiftedDate.getUTCFullYear() === currentYear && shiftedDate.getUTCMonth() === currentMonth) {
+                    total += (entry.usage || 0);
+                }
+            }
+            return total;
         }
 
         // ---------- Helper: get forecast ----------
@@ -324,6 +361,7 @@
                     const displayName = meterNames[meter] || meter;
                     const lastEntry = history.length > 0 ? history[history.length - 1] : null;
                     const avgUsage = calculateAverageUsage(history);
+                    const totalMonth = calculateTotalUsageCurrentMonth(history);
                     const latestBalance = lastEntry ? lastEntry.balance : 0;
                     const latestDate = lastEntry ? formatDateLabel(lastEntry.balance_date) : '--';
 
@@ -360,14 +398,20 @@
                         <div class="balance-amount ${balanceClass}">৳ ${latestBalance.toFixed(2)}</div>
                         <div class="meta-row">
                             <span>📅 তারিখ: ${latestDate}</span>
-                            <span class="usage-badge">গড় খরচ: ৳ ${avgUsage.toFixed(2)}</span>
+                            <span class="usage-badge">📊 ৭ দিনের গড়: ৳ ${avgUsage.toFixed(2)}</span>
                         </div>
                         <div class="chart-container">
                             <canvas id="chart-${meter}"></canvas>
                         </div>
                         <div class="forecast-row">
-                            <span class="forecast-label">🔮 পূর্বাভাস</span>
-                            <span class="forecast-value">${forecastText}</span>
+                            <div class="forecast-left">
+                                <span class="forecast-label">📈 এ মাসের মোট খরচ</span>
+                                <span class="total-usage-value">৳ ${totalMonth.toFixed(2)}</span>
+                            </div>
+                            <div class="forecast-right">
+                                <span class="forecast-label">🔮 পূর্বাভাস</span>
+                                <span class="forecast-value">${forecastText}</span>
+                            </div>
                         </div>
                     `;
 
