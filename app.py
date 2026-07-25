@@ -1,12 +1,11 @@
 import os
-import re
 import json
 import requests
-from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
 
-PANEL_URL = "https://customer.nesco.gov.bd/pre/panel"
+# NESCO API Endpoint (Used by the Telegram Bot & Mobile App)
+API_URL = "https://prepaid.nesco.gov.bd/api/v1/customer-balance/{cust_no}"
 DB_FILE = "meter_history.json"
 CONFIG_FILE = "meter_config.json"
 
@@ -26,27 +25,46 @@ def get_meter_numbers():
             return ["37005309", "37006814", "37001280", "37009693", "37005104", "37002391"]
 
 def fetch_nesco_data(cust_no):
+    """
+    Fetches balance data directly via NESCO's REST API.
+    Bypasses HTML parsing and anti-bot measures.
+    """
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r1 = session.get(PANEL_URL, headers=headers, timeout=20)
-        soup_page = BeautifulSoup(r1.text, "html.parser")
-        token_tag = soup_page.find("input", {"name": "_token"})
-        if not token_tag:
+        # Full Chrome User-Agent header prevents 403 Forbidden errors
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": "https://prepaid.nesco.gov.bd/",
+            "Origin": "https://prepaid.nesco.gov.bd"
+        }
+        
+        url = API_URL.format(cust_no=cust_no.strip())
+        response = session.get(url, headers=headers, timeout=20)
+
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Safe extraction of balance from JSON response
+            balance_value = float(data.get("balance", 0.0))
+            
+            # Format the date as YYYY-MM-DD (matches your original db format)
+            reading_time = data.get("readingTime")
+            if reading_time:
+                try:
+                    dt = datetime.strptime(reading_time, "%Y-%m-%d %H:%M:%S")
+                    formatted_date = dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    formatted_date = datetime.now(BD_TZ).strftime("%Y-%m-%d")
+            else:
+                formatted_date = datetime.now(BD_TZ).strftime("%Y-%m-%d")
+
+            return {"balance": balance_value, "date": formatted_date}
+        else:
+            print(f"❌ API returned status code {response.status_code} for meter {cust_no}")
             return None
-        data = {"_token": token_tag["value"], "cust_no": cust_no.strip(), "submit": "রিচার্জ হিস্ট্রি"}
-        r2 = session.post(PANEL_URL, headers=headers, data=data, timeout=30)
-        soup = BeautifulSoup(r2.text, "html.parser")
-        balance_anchor = soup.find(string=re.compile("অবশিষ্ট ব্যালেন্স"))
-        if not balance_anchor:
-            return None
-        label = balance_anchor.find_parent("label")
-        balance_value = float(label.find_next_sibling("div").find("input")["value"])
-        date_str = label.find("span").text.strip()
-        dt = datetime.strptime(date_str, "%d %B %Y %I:%M:%S %p")
-        formatted_date = dt.strftime("%Y-%m-%d")
-        return {"balance": balance_value, "date": formatted_date}
+
     except Exception as e:
-        print(f"❌ Error scraping {cust_no}: {e}")
+        print(f"❌ Error fetching meter {cust_no}: {e}")
         return None
 
 def main():
