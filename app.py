@@ -1,17 +1,39 @@
 import os
-import re
 import json
-import requests
-from bs4 import BeautifulSoup
 from datetime import datetime
 import pytz
+import cloudscraper
 
-PANEL_URL = "https://customer.nesco.gov.bd/pre/panel"
+API_URL = "https://prepaid.nesco.gov.bd/api/v1/customer-balance/{cust_no}"
 DB_FILE = "meter_history.json"
 CONFIG_FILE = "meter_config.json"
 
 BD_TZ = pytz.timezone('Asia/Dhaka')
-session = requests.Session()
+
+# Initialize CloudScraper session (bypasses Cloudflare / WAF checks)
+scraper = cloudscraper.create_scraper(
+    browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'mobile': False
+    }
+)
+
+# Standard Browser Headers
+scraper.headers.update({
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9,bn;q=0.8",
+    "Referer": "https://prepaid.nesco.gov.bd/",
+    "Origin": "https://prepaid.nesco.gov.bd"
+})
+
+def prime_session():
+    """Visits the main landing page to acquire initial session cookies."""
+    try:
+        scraper.get("https://prepaid.nesco.gov.bd/", timeout=15)
+    except Exception as e:
+        print(f"⚠️ Warning: Could not prime session: {e}")
 
 def get_meter_numbers():
     try:
@@ -27,26 +49,30 @@ def get_meter_numbers():
 
 def fetch_nesco_data(cust_no):
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        r1 = session.get(PANEL_URL, headers=headers, timeout=20)
-        soup_page = BeautifulSoup(r1.text, "html.parser")
-        token_tag = soup_page.find("input", {"name": "_token"})
-        if not token_tag:
+        url = API_URL.format(cust_no=cust_no.strip())
+        response = scraper.get(url, timeout=20)
+
+        if response.status_code == 200:
+            data = response.json()
+            balance_value = float(data.get("balance", 0.0))
+            
+            reading_time = data.get("readingTime")
+            if reading_time:
+                try:
+                    dt = datetime.strptime(reading_time, "%Y-%m-%d %H:%M:%S")
+                    formatted_date = dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    formatted_date = datetime.now(BD_TZ).strftime("%Y-%m-%d")
+            else:
+                formatted_date = datetime.now(BD_TZ).strftime("%Y-%m-%d")
+
+            return {"balance": balance_value, "date": formatted_date}
+        else:
+            print(f"❌ API returned status code {response.status_code} for meter {cust_no}")
             return None
-        data = {"_token": token_tag["value"], "cust_no": cust_no.strip(), "submit": "রিচার্জ হিস্ট্রি"}
-        r2 = session.post(PANEL_URL, headers=headers, data=data, timeout=30)
-        soup = BeautifulSoup(r2.text, "html.parser")
-        balance_anchor = soup.find(string=re.compile("অবশিষ্ট ব্যালেন্স"))
-        if not balance_anchor:
-            return None
-        label = balance_anchor.find_parent("label")
-        balance_value = float(label.find_next_sibling("div").find("input")["value"])
-        date_str = label.find("span").text.strip()
-        dt = datetime.strptime(date_str, "%d %B %Y %I:%M:%S %p")
-        formatted_date = dt.strftime("%Y-%m-%d")
-        return {"balance": balance_value, "date": formatted_date}
+
     except Exception as e:
-        print(f"❌ Error scraping {cust_no}: {e}")
+        print(f"❌ Error fetching meter {cust_no}: {e}")
         return None
 
 def main():
@@ -65,6 +91,9 @@ def main():
     meters = get_meter_numbers()
     print(f"⏰ Runner Time (BD): {now_bd_str}")
 
+    # Prime session once before hitting meter endpoints
+    prime_session()
+
     for cust_no in meters:
         print(f"\n🔍 Checking meter: {cust_no}")
         current_data = fetch_nesco_data(cust_no)
@@ -73,7 +102,7 @@ def main():
             continue
 
         web_balance = current_data["balance"]
-        web_date = current_data["date"]   # no shift – use as-is
+        web_date = current_data["date"]
 
         print(f"   📅 Scraped Date: {web_date}, Balance: {web_balance}")
 
@@ -82,14 +111,12 @@ def main():
 
         history = meter_data[cust_no]
 
-        # ---- Check if we already have an entry for this date ----
         existing_idx = None
         for i, entry in enumerate(history):
             if entry["balance_date"] == web_date:
                 existing_idx = i
                 break
 
-        # ---- Calculate usage from last recorded balance (if any) ----
         if len(history) > 0:
             last_entry = history[-1]
             prev_balance = last_entry["balance"]
@@ -100,7 +127,6 @@ def main():
         else:
             usage = 0.0
 
-        # ---- Only update if balance has changed OR no entry exists for this date ----
         if existing_idx is not None:
             existing_entry = history[existing_idx]
             if existing_entry["balance"] != web_balance:
@@ -112,7 +138,6 @@ def main():
             else:
                 print(f"   ⏭️ Balance unchanged for {web_date}. No update needed.")
         else:
-            # No entry for this date – add new one
             history.append({
                 "balance_date": web_date,
                 "balance": web_balance,
@@ -121,7 +146,6 @@ def main():
             })
             print(f"   ➕ Added new entry for {web_date}. Usage: {usage}")
 
-        # Always update last run
         last_run[cust_no] = now_bd_str
         print(f"   🕒 Last run updated to: {now_bd_str}")
 
