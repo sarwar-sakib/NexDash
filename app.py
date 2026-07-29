@@ -13,6 +13,17 @@ CONFIG_FILE = "meter_config.json"
 BD_TZ = pytz.timezone('Asia/Dhaka')
 session = requests.Session()
 
+# ---- PROXY SUPPORT ----
+PROXY = os.getenv("PROXY_URL")
+if PROXY:
+    session.proxies = {
+        "http": PROXY,
+        "https": PROXY,
+    }
+    print(f"🔒 Using proxy: {PROXY}")
+else:
+    print("🔓 No proxy configured — using direct connection")
+
 def get_meter_numbers():
     try:
         with open(CONFIG_FILE, "r") as f:
@@ -73,7 +84,7 @@ def main():
             continue
 
         web_balance = current_data["balance"]
-        web_date = current_data["date"]   # no shift – use as-is
+        web_date = current_data["date"]
 
         print(f"   📅 Scraped Date: {web_date}, Balance: {web_balance}")
 
@@ -82,14 +93,12 @@ def main():
 
         history = meter_data[cust_no]
 
-        # ---- Check if we already have an entry for this date ----
         existing_idx = None
         for i, entry in enumerate(history):
             if entry["balance_date"] == web_date:
                 existing_idx = i
                 break
 
-        # ---- Calculate usage from last recorded balance (if any) ----
         if len(history) > 0:
             last_entry = history[-1]
             prev_balance = last_entry["balance"]
@@ -100,7 +109,6 @@ def main():
         else:
             usage = 0.0
 
-        # ---- Only update if balance has changed OR no entry exists for this date ----
         if existing_idx is not None:
             existing_entry = history[existing_idx]
             if existing_entry["balance"] != web_balance:
@@ -112,7 +120,6 @@ def main():
             else:
                 print(f"   ⏭️ Balance unchanged for {web_date}. No update needed.")
         else:
-            # No entry for this date – add new one
             history.append({
                 "balance_date": web_date,
                 "balance": web_balance,
@@ -121,7 +128,6 @@ def main():
             })
             print(f"   ➕ Added new entry for {web_date}. Usage: {usage}")
 
-        # Always update last run
         last_run[cust_no] = now_bd_str
         print(f"   🕒 Last run updated to: {now_bd_str}")
 
