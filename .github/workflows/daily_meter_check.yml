@@ -23,8 +23,11 @@ jobs:
       - name: Install Dependencies
         run: |
           pip install requests beautifulsoup4 pytz
+          pip install requests[socks]  # <-- ADD THIS for SOCKS5 support
 
       - name: Run Script
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}  # <-- ADD THIS
         run: python app.py
 
       - name: Commit and Push
