@@ -39,13 +39,13 @@ def get_meter_numbers():
 def fetch_nesco_data(cust_no):
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        r1 = session.get(PANEL_URL, headers=headers, timeout=20)
+        r1 = session.get(PANEL_URL, headers=headers, timeout=30)
         soup_page = BeautifulSoup(r1.text, "html.parser")
         token_tag = soup_page.find("input", {"name": "_token"})
         if not token_tag:
             return None
         data = {"_token": token_tag["value"], "cust_no": cust_no.strip(), "submit": "রিচার্জ হিস্ট্রি"}
-        r2 = session.post(PANEL_URL, headers=headers, data=data, timeout=30)
+        r2 = session.post(PANEL_URL, headers=headers, data=data, timeout=40)
         soup = BeautifulSoup(r2.text, "html.parser")
         balance_anchor = soup.find(string=re.compile("অবশিষ্ট ব্যালেন্স"))
         if not balance_anchor:
